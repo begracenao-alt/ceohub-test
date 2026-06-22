@@ -159,6 +159,9 @@
       return d;
     }
 
+    // 自分が直近に書き込んだ内容（ループ防止用）
+    var lastSent = { hubs: "", personal: "" };
+
     // クラウド書き込みのスロットル（共有用と個人用、別々に）
     var pending = { hubs: null, personal: null };
     var timers = { hubs: null, personal: null };
@@ -171,8 +174,10 @@
         timers[col] = null;
         var user = auth.currentUser;
         if (!user || !snapshot) return;
+        var jsonStr = JSON.stringify(snapshot);
+        lastSent[col] = jsonStr;  // 自分の書き込みを記録
         setSyncMark("☁ 同期中…");
-        fs_.setDoc(fs_.doc(db, col, user.uid), { json: JSON.stringify(snapshot), at: Date.now() })
+        fs_.setDoc(fs_.doc(db, col, user.uid), { json: jsonStr, at: Date.now() })
           .then(function () { setSyncMark("☁ 同期 OK"); })
           .catch(function (e) { setSyncMark("⚠ 同期エラー"); console.warn(e); });
       }, 1000);
@@ -251,11 +256,15 @@
             setTimeout(function () { location.reload(); }, 500);
           } catch (e) {}
         }
+        // 初回スナップショットは「現在の状態を記録」だけして、reloadは起こさない
+        var firstSnap = { hubs: true, personal: true };
         if (unsubscribeHubs) unsubscribeHubs();
         unsubscribeHubs = fs_.onSnapshot(fs_.doc(db, "hubs", user.uid), function (snap) {
           if (!snap.exists() || !snap.metadata || snap.metadata.hasPendingWrites) return;
           var d = snap.data();
           if (!d || !d.json) return;
+          if (firstSnap.hubs) { firstSnap.hubs = false; lastSent.hubs = d.json; return; }
+          if (d.json === lastSent.hubs) return;  // 自分の書き込みは無視
           try { applyRemoteUpdate("shared", JSON.parse(d.json)); } catch (e) {}
         });
         if (unsubscribePersonal) unsubscribePersonal();
@@ -263,6 +272,8 @@
           if (!snap.exists() || !snap.metadata || snap.metadata.hasPendingWrites) return;
           var d = snap.data();
           if (!d || !d.json) return;
+          if (firstSnap.personal) { firstSnap.personal = false; lastSent.personal = d.json; return; }
+          if (d.json === lastSent.personal) return;  // 自分の書き込みは無視
           try { applyRemoteUpdate("priv", JSON.parse(d.json)); } catch (e) {}
         });
       } else {
