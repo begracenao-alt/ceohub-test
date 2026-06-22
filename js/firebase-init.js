@@ -202,8 +202,17 @@
       if (user) {
         closeLogin();
         showUserBar(user.email);
+        // 順序を揃えて比較（早めに定義しておく）
+        function stableStr2(obj) {
+          if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
+          if (Array.isArray(obj)) return "[" + obj.map(stableStr2).join(",") + "]";
+          var ks = Object.keys(obj).sort();
+          return "{" + ks.map(function (k) { return JSON.stringify(k) + ":" + stableStr2(obj[k]); }).join(",") + "}";
+        }
         // 初回はクラウドからデータを取得（このタブで一度だけ）
         var loaded = sessionStorage.getItem("bgCloudLoaded");
+        var lastReload = parseInt(sessionStorage.getItem("bgLastReload") || "0", 10);
+        var canReload = (Date.now() - lastReload >= 5000);
         if (!loaded) {
           sessionStorage.setItem("bgCloudLoaded", "1");
           setSyncMark("☁ 読み込み中…");
@@ -218,12 +227,12 @@
               var currentObj = {};
               try { currentObj = currentJson ? JSON.parse(currentJson) : {}; } catch (e) {}
               var currentSplit = splitData(currentObj);
-              // クラウドに存在する分は上書き、ないところはローカルを残す
               var merged = mergeData(sharedCloud || currentSplit.shared, privCloud || currentSplit.priv);
-              var mergedJson = JSON.stringify(merged);
-              if (currentJson !== mergedJson) {
+              // キー順を揃えて比較（内容が同じなら何もしない）
+              if (stableStr2(currentObj) !== stableStr2(merged) && canReload) {
                 try {
-                  localStorage.setItem("begrace_ceo_hub_v1", mergedJson);
+                  localStorage.setItem("begrace_ceo_hub_v1", JSON.stringify(merged));
+                  sessionStorage.setItem("bgLastReload", String(Date.now()));
                   setSyncMark("☁ 同期 OK");
                   location.reload();
                   return;
@@ -239,6 +248,13 @@
           setSyncMark("☁ 同期 OK");
         }
 
+        // 順序を揃えて比較する（キー順違いで誤検知しないように）
+        function stableStr(obj) {
+          if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
+          if (Array.isArray(obj)) return "[" + obj.map(stableStr).join(",") + "]";
+          var ks = Object.keys(obj).sort();
+          return "{" + ks.map(function (k) { return JSON.stringify(k) + ":" + stableStr(obj[k]); }).join(",") + "}";
+        }
         // リアルタイム監視（共有 + 個人 別々に）
         function applyRemoteUpdate(field, value) {
           var currentJson = localStorage.getItem("begrace_ceo_hub_v1");
@@ -248,10 +264,14 @@
           var nextShared = field === "shared" ? value : currentSplit.shared;
           var nextPriv = field === "priv" ? value : currentSplit.priv;
           var merged = mergeData(nextShared, nextPriv);
-          var mergedJson = JSON.stringify(merged);
-          if (currentJson === mergedJson) return;
+          // キー順を揃えて比較（内容が同じなら何もしない）
+          if (stableStr(currentObj) === stableStr(merged)) return;
+          // 直近のリロードから5秒以内なら、安全のためスキップ（ループ防止）
+          var lastReload = parseInt(sessionStorage.getItem("bgLastReload") || "0", 10);
+          if (Date.now() - lastReload < 5000) return;
           try {
-            localStorage.setItem("begrace_ceo_hub_v1", mergedJson);
+            localStorage.setItem("begrace_ceo_hub_v1", JSON.stringify(merged));
+            sessionStorage.setItem("bgLastReload", String(Date.now()));
             setSyncMark("☁ 他端末から更新");
             setTimeout(function () { location.reload(); }, 500);
           } catch (e) {}
