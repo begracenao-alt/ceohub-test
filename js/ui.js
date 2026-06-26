@@ -135,6 +135,19 @@
           html += '<option value="' + esc(o) + '"' + (String(v) === String(o) ? " selected" : "") + '>' + esc(o) + '</option>';
         });
         html += '</select>';
+      } else if (f.type === "selectadd") {
+        // 選べるドロップダウン＋「＋ 自分で入力する」（一覧が隠れない）
+        var opts = f.options || [];
+        var inList = v !== "" && opts.indexOf(v) >= 0;
+        var isOther = v !== "" && !inList;
+        html += '<select name="' + f.name + '" id="f_' + f.name + '" data-selectadd="' + f.name + '">';
+        html += '<option value="">' + esc(f.placeholder || "選んでください") + '</option>';
+        opts.forEach(function (o) {
+          html += '<option value="' + esc(o) + '"' + ((!isOther && String(v) === String(o)) ? " selected" : "") + '>' + esc(o) + '</option>';
+        });
+        html += '<option value="__other__"' + (isOther ? " selected" : "") + '>＋ 自分で入力する</option>';
+        html += '</select>';
+        html += '<input type="text" name="' + f.name + '__other" id="f_' + f.name + '__other" placeholder="ここに打ち込んで追加" value="' + esc(isOther ? v : "") + '" style="margin-top:8px;' + (isOther ? "" : "display:none") + '">';
       } else if (f.type === "datalist") {
         var lid = "dl_" + f.name;
         html += '<input type="text" name="' + f.name + '" id="f_' + f.name + '" list="' + lid + '" autocomplete="off" value="' + esc(v) + '" placeholder="' + esc(f.placeholder || "") + '">';
@@ -163,6 +176,16 @@
         var arr = [];
         formEl.querySelectorAll('[data-checks="' + f.name + '"]').forEach(function (n) { if (n.checked) arr.push(n.value); });
         out[f.name] = arr;
+        return;
+      }
+      if (f.type === "selectadd") {
+        var selEl = formEl.querySelector('[name="' + f.name + '"]');
+        var sval = selEl ? selEl.value : "";
+        if (sval === "__other__") {
+          var oEl = formEl.querySelector('[name="' + f.name + '__other"]');
+          sval = oEl ? oEl.value.trim() : "";
+        }
+        out[f.name] = sval;
         return;
       }
       var el = formEl.querySelector('[name="' + f.name + '"]');
@@ -201,6 +224,15 @@
         inp.addEventListener("compositionstart", function () { composing = true; });
         inp.addEventListener("compositionend", function () { composing = false; reformat(); });
         inp.addEventListener("input", function () { if (composing) return; reformat(); });
+      });
+      m.querySelectorAll("[data-selectadd]").forEach(function (sel) {
+        var other = m.querySelector("#f_" + sel.getAttribute("data-selectadd") + "__other");
+        sel.addEventListener("change", function () {
+          if (!other) return;
+          var on = sel.value === "__other__";
+          other.style.display = on ? "" : "none";
+          if (on) other.focus();
+        });
       });
       m.querySelector("[data-cancel]").onclick = closeModal;
       m.querySelector("[data-save]").onclick = function () {
