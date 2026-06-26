@@ -38,23 +38,34 @@
     "地代家賃", "水道光熱費", "支払手数料", "研修費", "新聞図書費", "仕入", "減価償却費",
     "租税公課", "損害保険料", "修繕費", "荷造運賃", "福利厚生費", "給料賃金", "雑費"];
 
-  var saleFields = [
-    { name: "date", label: "日付", type: "date", value: U.todayStr() },
-    { name: "customer", label: "顧客名／取引先名", type: "text" },
-    { name: "product", label: "商品／サービス名", type: "text" },
-    { name: "amount", label: "売上金額", type: "money" },
-    { name: "dueDate", label: "入金予定日", type: "date" },
-    { name: "payMethod", label: "支払い方法", type: "select", options: ["銀行振込", "クレジット", "現金", "PayPay", "PayPal", "その他"] },
-    { name: "paid", label: "入金済み", type: "checkbox" },
-    { name: "memo", label: "メモ", type: "textarea", full: true }
-  ];
-  var expFields = [
-    { name: "date", label: "日付", type: "date", value: U.todayStr() },
-    { name: "content", label: "内容（何に使ったか）", type: "text" },
-    { name: "amount", label: "金額", type: "money" },
-    { name: "category", label: "勘定科目（選ぶ／自由に入力もOK）", type: "datalist", options: KANJO, placeholder: "一覧から選ぶか、入力もできます（例：外注工賃）" },
-    { name: "memo", label: "メモ", type: "textarea", full: true }
-  ];
+  // 支払方法・受け取り方法（なお様が自分で追加・編集・削除できるリスト）
+  // 先頭に空欄を足して「選ばない」も選べるようにする
+  function payOpts() { return [""].concat(S.list("payMethods")); }
+  function recvOpts() { return [""].concat(S.list("receiveMethods")); }
+
+  // フォームは、その時点の最新リストで作る（関数にしておく）
+  function saleFields() {
+    return [
+      { name: "date", label: "日付", type: "date", value: U.todayStr() },
+      { name: "customer", label: "顧客名／取引先名", type: "text" },
+      { name: "product", label: "商品／サービス名", type: "text" },
+      { name: "amount", label: "売上金額", type: "money" },
+      { name: "dueDate", label: "入金予定日", type: "date" },
+      { name: "payMethod", label: "受け取り方法", type: "select", options: recvOpts() },
+      { name: "paid", label: "入金済み", type: "checkbox" },
+      { name: "memo", label: "メモ", type: "textarea", full: true }
+    ];
+  }
+  function expFields() {
+    return [
+      { name: "date", label: "日付", type: "date", value: U.todayStr() },
+      { name: "content", label: "内容（何に使ったか）", type: "text" },
+      { name: "amount", label: "金額", type: "money" },
+      { name: "category", label: "勘定科目（選ぶ／自由に入力もOK）", type: "datalist", options: KANJO, placeholder: "一覧から選ぶか、入力もできます（例：外注工賃）" },
+      { name: "payMethod", label: "支払方法", type: "select", options: payOpts() },
+      { name: "memo", label: "メモ", type: "textarea", full: true }
+    ];
+  }
 
   function yearOf(d) { return (d || "").slice(0, 4); }
   function byYear(y) { return function (r) { return yearOf(r.date) === y; }; }
@@ -130,6 +141,8 @@
     html += '<div class="card mt">' + U.sectionHead("売上", "売上を追加", "addSale") + tableSales() + clearBtn("sales", "clrSale", "売上") + '</div>';
     // 経費テーブル
     html += '<div class="card">' + U.sectionHead("経費", "経費を追加", "addExp") + tableExp() + clearBtn("expenses", "clrExp", "経費") + '</div>';
+    // 支払方法・受け取り方法の編集
+    html += '<div style="text-align:right;margin:2px 0 10px"><button class="btn btn-sm" id="mgMethods">⚙️ 支払方法・受け取り方法を編集（追加・削除）</button></div>';
     // 勘定科目の早見表（下に）
     html += hayamiHTML();
     // データを取り込む（コピー＆貼り付け）※いちばん下に
@@ -147,6 +160,7 @@
       b.onclick = function () { selYear = b.getAttribute("data-year"); render(view); };
     });
     document.getElementById("csvOut").onclick = function () { exportCSV(selYear); };
+    document.getElementById("mgMethods").onclick = function () { manageMethods(view); };
 
     // 取り込み（コピペ）
     function wirePaste(btnId, type) {
@@ -160,11 +174,11 @@
     wirePaste("pasteExp", "expenses");
 
     document.getElementById("addSale").onclick = function () {
-      U.recordModal({ title: "売上を追加", fields: saleFields, values: { date: U.todayStr() },
+      U.recordModal({ title: "売上を追加", fields: saleFields(), values: { date: U.todayStr() },
         onSave: function (v) { S.add("sales", v); U.toast("売上を追加しました"); render(view); } });
     };
     document.getElementById("addExp").onclick = function () {
-      U.recordModal({ title: "経費を追加", fields: expFields, values: { date: U.todayStr() },
+      U.recordModal({ title: "経費を追加", fields: expFields(), values: { date: U.todayStr() },
         onSave: function (v) { S.add("expenses", v); U.toast("経費を追加しました"); render(view); } });
     };
     var cs2 = document.getElementById("clrSale");
@@ -208,16 +222,16 @@
     });
     L.push("");
     L.push("【売上の明細】");
-    L.push("日付,顧客／取引先,商品／サービス,金額,入金,入金予定日,メモ");
+    L.push("日付,顧客／取引先,商品／サービス,金額,入金,入金予定日,受け取り方法,メモ");
     sales.forEach(function (r) {
       L.push([csvCell(r.date), csvCell(r.customer), csvCell(r.product), U.num(r.amount),
-        r.paid ? "入金済" : "未入金", csvCell(r.dueDate), csvCell(r.memo)].join(","));
+        r.paid ? "入金済" : "未入金", csvCell(r.dueDate), csvCell(r.payMethod), csvCell(r.memo)].join(","));
     });
     L.push("");
     L.push("【経費の明細】");
-    L.push("日付,内容,勘定科目,金額,メモ");
+    L.push("日付,内容,勘定科目,金額,支払方法,メモ");
     exp.forEach(function (r) {
-      L.push([csvCell(r.date), csvCell(r.content), csvCell(r.category), U.num(r.amount), csvCell(r.memo)].join(","));
+      L.push([csvCell(r.date), csvCell(r.content), csvCell(r.category), U.num(r.amount), csvCell(r.payMethod), csvCell(r.memo)].join(","));
     });
     var blob = new Blob(["﻿" + L.join("\r\n")], { type: "text/csv;charset=utf-8" });
     var url = URL.createObjectURL(blob);
@@ -369,6 +383,11 @@
     done();
   }
 
+  // 方法（支払・受け取り）のセル表示。未選択は「—」
+  function methodCell(v) {
+    return v ? '<span class="badge gray">' + U.esc(v) + '</span>' : '<span class="muted">—</span>';
+  }
+
   function tableSales() {
     var rows = S.list("sales").slice().sort(function (a, b) { return (b.date || "").localeCompare(a.date || ""); });
     var body = rows.length ? rows.map(function (r) {
@@ -379,11 +398,12 @@
         '<td class="num">' + U.yen(r.amount) + '</td>' +
         '<td>' + (r.paid ? '<span class="badge ok">入金済</span>' : '<span class="badge warn">未入金</span>') + '</td>' +
         '<td>' + U.fmtDate(r.dueDate) + '</td>' +
+        '<td>' + methodCell(r.payMethod) + '</td>' +
         '<td class="row-actions">' + editDel("sales", r.id) + '</td>' +
         '</tr>';
-    }).join("") : U.emptyRow(7, "売上を追加してみましょう");
+    }).join("") : U.emptyRow(8, "売上を追加してみましょう");
     return '<div class="table-wrap"><table><thead><tr>' +
-      '<th>日付</th><th>顧客</th><th>商品</th><th class="num">金額</th><th>入金</th><th>予定日</th><th></th>' +
+      '<th>日付</th><th>顧客</th><th>商品</th><th class="num">金額</th><th>入金</th><th>予定日</th><th>受け取り方法</th><th></th>' +
       '</tr></thead><tbody>' + body + '</tbody></table></div>';
   }
 
@@ -395,11 +415,12 @@
         '<td>' + U.esc(r.content) + '</td>' +
         '<td><span class="badge gray">' + U.esc(r.category) + '</span></td>' +
         '<td class="num">' + U.yen(r.amount) + '</td>' +
+        '<td>' + methodCell(r.payMethod) + '</td>' +
         '<td class="row-actions">' + editDel("expenses", r.id) + '</td>' +
         '</tr>';
-    }).join("") : U.emptyRow(5, "経費を追加してみましょう");
+    }).join("") : U.emptyRow(6, "経費を追加してみましょう");
     return '<div class="table-wrap"><table><thead><tr>' +
-      '<th>日付</th><th>内容</th><th>勘定科目</th><th class="num">金額</th><th></th>' +
+      '<th>日付</th><th>内容</th><th>勘定科目</th><th class="num">金額</th><th>支払方法</th><th></th>' +
       '</tr></thead><tbody>' + body + '</tbody></table></div>';
   }
 
@@ -418,7 +439,7 @@
     view.querySelectorAll("[data-edit]").forEach(function (b) {
       b.onclick = function () {
         var col = b.getAttribute("data-edit"), id = b.getAttribute("data-id");
-        var fields = col === "sales" ? saleFields : expFields;
+        var fields = col === "sales" ? saleFields() : expFields();
         U.recordModal({ title: "編集", fields: fields, values: S.find(col, id),
           onSave: function (v) { S.update(col, id, v); U.toast("更新しました"); render(view); } });
       };
@@ -429,6 +450,59 @@
         U.confirmDelete("この項目を削除しますか？", function () { S.remove(col, id); U.toast("削除しました"); render(view); });
       };
     });
+  }
+
+  // 支払方法・受け取り方法の管理（追加・削除・並べ替え）
+  function manageMethods(view) {
+    function open() {
+      var pay = S.list("payMethods"), recv = S.list("receiveMethods");
+      function block(title, arr, kind) {
+        var rows = arr.length ? arr.map(function (c, i) {
+          return '<div class="check-row" style="justify-content:space-between;border-bottom:1px solid var(--line-2);padding:9px 2px">' +
+            '<span>' + U.esc(c) + '</span><span style="display:flex;gap:6px">' +
+            '<button class="btn btn-sm" data-up="' + kind + ':' + i + '"' + (i === 0 ? ' disabled' : '') + '>▲</button>' +
+            '<button class="btn btn-sm" data-down="' + kind + ':' + i + '"' + (i === arr.length - 1 ? ' disabled' : '') + '>▼</button>' +
+            '<button class="btn btn-sm btn-danger" data-rm="' + kind + ':' + U.esc(c) + '">削除</button></span></div>';
+        }).join("") : '<p class="hint">まだありません。下から追加してください。</p>';
+        return '<div style="font-weight:600;margin:14px 0 4px">' + title + '</div>' + rows +
+          '<div class="field" style="margin-top:8px"><input type="text" id="new_' + kind + '" placeholder="新しく追加（例：' +
+          (kind === 'pay' ? 'PayPay・三井住友カード' : 'Stripe・ゆうちょ') + '）"></div>' +
+          '<div style="text-align:right"><button class="btn btn-sm btn-primary" data-add="' + kind + '">追加</button></div>';
+      }
+      var body = '<p class="hint">▲▼で並び替え、削除もできます。削除しても、過去の記録のラベルは残ります。</p>' +
+        block("支払方法（経費）", pay, "pay") +
+        block("受け取り方法（売上）", recv, "recv") +
+        '<div class="modal-foot"><button class="btn" data-close2>閉じる</button></div>';
+      U.openModal("支払方法・受け取り方法の管理", body, function (m) {
+        function getArr(k) { return k === 'pay' ? S.list("payMethods") : S.list("receiveMethods"); }
+        function setArr(k, arr) { if (k === 'pay') S.setPayMethods(arr); else S.setReceiveMethods(arr); }
+        m.querySelector("[data-close2]").onclick = function () { U.closeModal(); render(view); };
+        m.querySelectorAll("[data-add]").forEach(function (b) {
+          b.onclick = function () {
+            var k = b.getAttribute("data-add");
+            var val = (m.querySelector("#new_" + k).value || "").trim();
+            if (!val) return;
+            var arr = getArr(k);
+            if (arr.indexOf(val) < 0) arr.push(val);
+            setArr(k, arr); U.toast("追加しました"); open();
+          };
+        });
+        m.querySelectorAll("[data-rm]").forEach(function (b) {
+          b.onclick = function () {
+            var p = b.getAttribute("data-rm").split(":"); var k = p[0], c = p.slice(1).join(":");
+            setArr(k, getArr(k).filter(function (x) { return x !== c; }));
+            U.toast("削除しました"); open();
+          };
+        });
+        m.querySelectorAll("[data-up]").forEach(function (b) {
+          b.onclick = function () { var p = b.getAttribute("data-up").split(":"); var k = p[0], i = +p[1]; var arr = getArr(k); var t = arr[i - 1]; arr[i - 1] = arr[i]; arr[i] = t; setArr(k, arr); open(); };
+        });
+        m.querySelectorAll("[data-down]").forEach(function (b) {
+          b.onclick = function () { var p = b.getAttribute("data-down").split(":"); var k = p[0], i = +p[1]; var arr = getArr(k); var t = arr[i + 1]; arr[i + 1] = arr[i]; arr[i] = t; setArr(k, arr); open(); };
+        });
+      });
+    }
+    open();
   }
 
   BG.modules = BG.modules || {};

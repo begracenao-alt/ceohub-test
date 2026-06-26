@@ -29,6 +29,8 @@
       dailyPosts: {},  // （旧）毎日の発信チェック
       snsStats: [],    // SNSフォロワー記録 [{date, counts:{アカウント:数}}]
       snsAccounts: ["Instagram", "スレッズ", "LINE公式", "YouTube", "メルマガ"], // フォロワー記録の対象アカウント（追加・削除できる）
+      payMethods: ["現金", "Amex", "楽天カード", "あおぞら銀行", "楽天銀行"], // 経費の支払方法（追加・編集・削除できる）
+      receiveMethods: ["現金", "PayPal", "あおぞら銀行", "楽天銀行"],          // 売上の受け取り方法（追加・編集・削除できる）
       schedule: [],    // 予定・予約・アポ [{date, title}]
       bodyLogs: [],    // カラダ&エネルギー（日次）
       bodyMoves: ["枕運動", "ヨガ", "散歩"], // BODYの運動項目（追加・削除できる）
@@ -114,6 +116,8 @@
     setContentCats: function (arr) { data.contentCats = arr; persist(); },
     setBodyMoves: function (arr) { data.bodyMoves = arr; persist(); },
     setSnsAccounts: function (arr) { data.snsAccounts = arr; persist(); },
+    setPayMethods: function (arr) { data.payMethods = arr; persist(); },
+    setReceiveMethods: function (arr) { data.receiveMethods = arr; persist(); },
 
     getDailyPosts: function () { return data.dailyPosts || {}; },
     toggleDailyPost: function (date, medium) {
